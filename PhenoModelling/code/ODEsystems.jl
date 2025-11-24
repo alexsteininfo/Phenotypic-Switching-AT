@@ -6,7 +6,7 @@
 #   one sensitive (S) and one resistant population (R)
 function SR!(du, u, param, t)
     # Unpack parameters and variables
-    r1, r2, K, m, wSR, wRS, dm, gamma = param
+    r1, r2, K, wSR, wRS, dm, gamma = param
     S, R = u
 
     # Define the ODEs
@@ -23,11 +23,11 @@ end
 #   where only S2 and R have phenotypic switching
 function S1S2R!(du, u, param, t)
     # Unpack parameters and variables
-    r1, r2, K, m, wSR, wRS, dm, gamma = param
-    S, R = u
+    rS1, rS2, rR, K, wSR, wRS, dm, gamma = param
+    S1, S2, R = u
 
     # Define the ODEs
-    dS = gamma * r1 * S * (1 - (S + R) / K) - dm * S - wSR * S + wRS * R
+    dS1 = gamma * r1 * S1 * (1 - (S1 + S2 + R) / K) - dm * S - wSR * S + wRS * R
     dR =         r2 * R * (1 - (S + R) / K)          + wSR * S - wRS * R
 
     du[1] = dS
@@ -40,7 +40,7 @@ end
 #   where R2 is an irreversible resistant state
 function SR1R2!(du, u, param, t)
     # Unpack parameters and variables
-    r1, r2, K, m, wSR, wRS, dm, gamma = param
+    r1, r2, K, wSR, wRS, dm, gamma = param
     S, R = u
 
     # Define the ODEs

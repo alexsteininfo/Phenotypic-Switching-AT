@@ -5,66 +5,127 @@
 ### Tumour growth ###
 #####################
 
-function tumourgrowth(ODEsystem!, detection_size, tmin, tmax, u0, param)
+function tumourgrowth(ODEsystem!, param_simulation, u0, param_model)
+    # Unpack simulation parameters
+    size_detection, tmin, tmax = param_simulation
     
     # Define stopping size criterion
-    cond_up(u,t,integrator) = u[1] + u[2] - detection_size
+    cond_up(u,t,integrator) = sum(u) - size_detection
     affect_up!(integrator) = terminate!(integrator)
     cb_detect = ContinuousCallback(cond_up, affect_up!)
 
     # Time span for the simulation
     tspan = (tmin, tmax)
     # Define the ODE problem
-    prob = ODEProblem(ODEsystem!, u0, tspan, param)
+    prob = ODEProblem(ODEsystem!, u0, tspan, param_model)
     # Solve the ODE problem
     sol = solve(prob, Tsit5(), callback = cb_detect)
 
     # Extract time points and populations
-    time_points = sol.t
-    sensitive_pop = sol[1, :]
-    resistant_pop = sol[2, :]  
-    total_pop = sensitive_pop .+ resistant_pop
-
-    return time_points, sensitive_pop, resistant_pop
+    if(length(u0)==2)
+        return sol.t, sol[1, :], sol[2, :] 
+    else
+        return sol.t, sol[1, :], sol[2, :], sol[3, :]
+    end
 end
 
-############################## 
-### Maximum tolerated dose ###
-##############################
+################# 
+### Treatment ###
+#################
 
-function maxtoldose()
-    # Implement simulation stopping criteria based on population size
+### Maximum tolerated dose
+#   terminates when 
+#       (i)     tmax is reached 
+#       (ii)    size = 1 --> virtual extinction
+#       (iii)   size = size_progression --> progression
 
-    # Upper bound threshold
-    threshold_up = 0.8 * K
-    cond_up(u,t,integrator) = u[1] + u[2] - threshold_up
-    affect_up!(integrator) = terminate!(integrator)
-    cb_up = ContinuousCallback(cond_up, affect_up!)
+function maxtoldose(ODEsystem!, param_simulation, u0, param_model)
+    # Unpack simulation parameters
+    size_progression, tmin, tmax = param_simulation
+    
+    # Progression threshold
+    cond_prog(u,t,integrator) = sum(u) - size_progression
+    affect_prog!(integrator) = terminate!(integrator)
+    cb_prog = ContinuousCallback(cond_prog, affect_prog!)
 
-    # Lower bound threshold
-    threshold_low = 0.4 * K
-    cond_low(u,t,integrator) = u[1] + u[2] - threshold_low
-    affect_low!(integrator) = terminate!(integrator)
-    cb_low = ContinuousCallback(cond_low, affect_low!)
+    # Extinction threshold
+    cond_extinct(u,t,integrator) = sum(u) - 1
+    affect_extinct!(integrator) = terminate!(integrator)
+    cb_extinct = ContinuousCallback(cond_extinct, affect_extinct!)
+    
+    cbs = CallbackSet(cb_prog, cb_extinct)
 
-    cbs = CallbackSet(cb_up, cb_low)
+    # Time span for the simulation
+    tspan = (tmin, tmax)
+    # Define the ODE problem
+    prob = ODEProblem(ODEsystem!, u0, tspan, param_model)
+    # Solve the ODE problem
+    sol = solve(prob, Tsit5(), callback = cbs)
 
     # Extract time points and populations
-    time_points = sol.t
-    sensitive_pop = sol[1, :]
-    resistant_pop = sol[2, :]  
-    total_pop = sensitive_pop .+ resistant_pop
-
-    return time_points, sensitive_pop, resistant_pop
-
+    if(length(u0)==2)
+        return sol.t, sol[1, :], sol[2, :] 
+    else
+        return sol.t, sol[1, :], sol[2, :], sol[3, :]
+    end
 end
 
-########################################
-### Adaptive therapy (dose skipping) ###
-########################################
+### Adaptive therapy (dose skipping)
+#   starting with treatment m = 1
+#   changes treatment when
+#       size = lower_threshold: m --> 0
+#       size = upper_threshold: m --> 1
+#   terminates when 
+#       (i)     tmax is reached 
+#       (ii)    size = 1 --> virtual extinction
+#       (iii)   size = size_progression --> progression
 
-function at_dskipping()
-    return 0
+function at_dskipping(ODEsystem!, param_simulation, u0, param_model)
+    # Unpack simulation parameters
+    tmin, tmax = param_simulation
+    # Progression threshold
+    cond_prog(u,t,integrator) = sum(u) - size_progression
+    affect_prog!(integrator) = terminate!(integrator)
+    cb_prog = ContinuousCallback(cond_prog, affect_prog!)
+
+    # Extinction threshold
+    cond_extinct(u,t,integrator) = sum(u) - 1
+    affect_extinct!(integrator) = terminate!(integrator)
+    cb_extinct = ContinuousCallback(cond_extinct, affect_extinct!)
+    
+    # Upper bound threshold
+    cond_upper(u,t,integrator) = sum(u) - upper_threshold
+    affect_upper!(integrator) = begin
+        println("Changing parameter at t=$(integrator.t)")
+        integrator.param[6] = dm(m)   # modify treatment parameter, dm
+        integrator.param[7] = gamma(m)   # modify treatment parameter, gamma
+    end
+    cb_upper = ContinuousCallback(cond_upper,affect_upper!)
+
+    # Lower bound threshold
+    cond_lower(u,t,integrator) = sum(u) - lower_threshold
+    affect_lower!(integrator) = begin
+        println("Changing parameter at t=$(integrator.t)")
+        integrator.param[6] = dm(m)   # modify treatment parameter, dm
+        integrator.param[7] = gamma(m)   # modify treatment parameter, gamma
+    end
+    cb_lower = ContinuousCallback(cond_lower,affect_lower!)
+
+    cbs = CallbackSet(cb_prog, cb_extinct, cb_upper, cb_lower)
+
+    # Time span for the simulation
+    tspan = (tmin, tmax)
+    # Define the ODE problem
+    prob = ODEProblem(ODEsystem!, u0, tspan, param_model)
+    # Solve the ODE problem
+    sol = solve(prob, Tsit5(), callback = cbs)
+
+    # Extract time points and populations
+    if(length(u0)==2)
+        return sol.t, sol[1, :], sol[2, :] 
+    else
+        return sol.t, sol[1, :], sol[2, :], sol[3, :]
+    end
 end
 
 ##########################################
