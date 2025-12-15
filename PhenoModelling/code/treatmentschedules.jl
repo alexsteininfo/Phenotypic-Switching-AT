@@ -1,4 +1,4 @@
-# title: implementation of treatment schedules
+# title: Implementation of treatment schedules
 # author: alexander stein
 
 #####################
@@ -35,7 +35,7 @@ end
 
 ### Maximum tolerated dose
 #   terminates when 
-#       (i)     tmax is reached 
+#       (i)     t = tmax --> maximum treatment time "tmax-tmin" is reached
 #       (ii)    size = 1 --> virtual extinction
 #       (iii)   size = size_progression --> progression
 
@@ -44,7 +44,7 @@ function maxtoldose(ODEsystem!, param_simulation, u0, param_model)
     size_progression, tmin, tmax = param_simulation
     
     # Progression threshold
-    cond_prog(u,t,integrator) = sum(u) - size_progression
+    cond_prog(u,t,integrator) = sum(u) - size_progression   # activated when function crosses 0
     affect_prog!(integrator) = terminate!(integrator)
     cb_prog = ContinuousCallback(cond_prog, affect_prog!)
 
@@ -76,15 +76,16 @@ end
 #       size = lower_threshold: m --> 0
 #       size = upper_threshold: m --> 1
 #   terminates when 
-#       (i)     tmax is reached 
+#       (i)     t = tmax --> maximum treatment time "tmax-tmin" is reached
 #       (ii)    size = 1 --> virtual extinction
 #       (iii)   size = size_progression --> progression
 
 function at_dskipping(ODEsystem!, param_simulation, u0, param_model)
     # Unpack simulation parameters
-    tmin, tmax = param_simulation
+    size_progression, tmin, tmax, lt, ut = param_simulation
+
     # Progression threshold
-    cond_prog(u,t,integrator) = sum(u) - size_progression
+    cond_prog(u,t,integrator) = sum(u) - size_progression   # activated when function crosses 0
     affect_prog!(integrator) = terminate!(integrator)
     cb_prog = ContinuousCallback(cond_prog, affect_prog!)
 
@@ -94,20 +95,20 @@ function at_dskipping(ODEsystem!, param_simulation, u0, param_model)
     cb_extinct = ContinuousCallback(cond_extinct, affect_extinct!)
     
     # Upper bound threshold
-    cond_upper(u,t,integrator) = sum(u) - upper_threshold
+    cond_upper(u,t,integrator) = sum(u) - ut
     affect_upper!(integrator) = begin
         println("Changing parameter at t=$(integrator.t)")
-        integrator.param[6] = dm(m)   # modify treatment parameter, dm
-        integrator.param[7] = gamma(m)   # modify treatment parameter, gamma
+        integrator.param[6] = dm(1.0)         # modify treatment parameter, dm
+        integrator.param[7] = gamma(1.0)      # modify treatment parameter, gamma
     end
     cb_upper = ContinuousCallback(cond_upper,affect_upper!)
 
     # Lower bound threshold
-    cond_lower(u,t,integrator) = sum(u) - lower_threshold
+    cond_lower(u,t,integrator) = sum(u) - lt
     affect_lower!(integrator) = begin
         println("Changing parameter at t=$(integrator.t)")
-        integrator.param[6] = dm(m)   # modify treatment parameter, dm
-        integrator.param[7] = gamma(m)   # modify treatment parameter, gamma
+        integrator.param[6] = dm(0.0)   # modify treatment parameter, dm
+        integrator.param[7] = gamma(0.0)   # modify treatment parameter, gamma
     end
     cb_lower = ContinuousCallback(cond_lower,affect_lower!)
 

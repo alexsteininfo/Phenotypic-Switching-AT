@@ -32,6 +32,7 @@ function S1S2R!(du, u, param, t)
 
     du[1] = dS
     du[2] = dR
+    du[3] = dR
 end
 
 
@@ -49,5 +50,6 @@ function SR1R2!(du, u, param, t)
 
     du[1] = dS
     du[2] = dR
+    du[3] = dR
 end
 
